@@ -1,0 +1,76 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fe-ingress
+  annotations:
+    cert-manager.io/issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  tls:
+  - hosts:
+    - snapfile.tech
+    - staging.snapfile.tech
+    secretName: snapfile-tls
+  rules:
+  - host: snapfile.tech
+    http:
+      paths:
+      - backend:
+          service:
+            name: snapfile-fe
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+  - host: staging.snapfile.tech
+    http:
+      paths:
+      - backend:
+          service:
+            name: snapfile-fe-staging
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress
+  annotations:
+    cert-manager.io/issuer: letsencrypt-prod
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+spec:
+  tls:
+  - hosts:
+    - api.snapfile.tech
+    secretName: snapfile-api-tls
+  rules:
+  - host: api.snapfile.tech
+    http:
+      paths:
+      - backend:
+          service:
+            name: dud
+            port:
+              number: 80
+        path: /dud(/|$)(.*)
+        pathType: Prefix
+      - backend:
+          service:
+            name: url
+            port:
+              number: 80
+        path: /meta(/|$)(.*)
+        pathType: Prefix
+      - backend:
+          service:
+            name: user
+            port:
+              number: 80
+        path: /user(/|$)(.*)
+        pathType: Prefix

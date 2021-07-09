@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dud
+spec:
+  selector:
+    app: dud
+  ports:
+    - port: 80
+      targetPort: 4000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dud
+spec:
+  selector:
+    matchLabels:
+      app: dud
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: dud
+    spec:
+      containers:
+      - name: dud
+        image: "gcr.io/com3014-a7833/dud"
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: dud-env
+        env:
+        - name: "PORT"
+          value: "4000"
+        - name: "URL_META"
+          value: "http://url.default.svc.cluster.local"
+        - name: "URL_USER"
+          value: "http://user.default.svc.cluster.local"
+        - name: "URL_META_PUBLIC"
+          value: "https://api.snapfile.tech/meta"
+

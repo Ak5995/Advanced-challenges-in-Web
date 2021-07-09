@@ -1,0 +1,84 @@
+stages:
+  - build
+  - deploy
+
+build_staging:
+  stage: build
+  before_script:
+    # Logs docker into the google container registry with the $GCLOUD_KEY.
+    - cat $GCLOUD_KEY | docker login -u _json_key --password-stdin https://gcr.io
+  script:
+    # Build the docker image according to your Dockerfile, --build-args are optional and you probably can leave it out.
+    # Note that there are 2 -t options, as we have a "staging" tag (you can leave it out to use "latest"), as well as a tag
+    # with the commit SHA, to easier identify the version that the service is using.
+    - docker build -t gcr.io/$GCLOUD_PROJECT_ID/snapfile:staging -t gcr.io/$GCLOUD_PROJECT_ID/snapfile:$CI_COMMIT_SHORT_SHA --build-arg COMMIT_SHA="$CI_COMMIT_SHORT_SHA" --build-arg COMMIT_TIMESTAMP="$CI_COMMIT_TIMESTAMP" .
+    # Push the images to GCR
+    - docker push gcr.io/$GCLOUD_PROJECT_ID/snapfile:staging
+    - docker push gcr.io/$GCLOUD_PROJECT_ID/snapfile:$CI_COMMIT_SHORT_SHA
+  only:
+    # Only run this job if the commit is on the "staging" branch
+    - staging
+  tags:
+    - docker-shell
+
+deploy_staging:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  before_script:
+    # This is to setup kubectl with the needed credentials
+    - gcloud auth activate-service-account $GCLOUD_SERVICE_ACCOUNT_EMAIL --key-file $GCLOUD_KEY
+    - gcloud components install kubectl
+    - gcloud config set project $GCLOUD_PROJECT_ID
+    - gcloud container clusters get-credentials $GCLOUD_CLUSTER_NAME --zone $GCLOUD_CLUSTER_ZONE
+  script:
+    # Restart the deployment so ingress grabs the latest image
+    - kubectl rollout restart deployment snapfile-fe-staging
+  environment:
+    name: staging
+    url: https://staging.snapfile.tech
+  only:
+    - staging
+  needs:
+    - build_staging
+  tags:
+    - docker-container
+
+build_prod:
+  stage: build
+  before_script:
+    - cat $GCLOUD_KEY | docker login -u _json_key --password-stdin https://gcr.io
+  script:
+    - >
+      if ! docker manifest inspect gcr.io/$GCLOUD_PROJECT_ID/snapfile:$CI_COMMIT_SHORT_SHA >/dev/null; then
+          docker build -t gcr.io/$GCLOUD_PROJECT_ID/snapfile:$CI_COMMIT_SHORT_SHA \
+              --build-arg COMMIT_SHA="$CI_COMMIT_SHORT_SHA" \
+              --build-arg COMMIT_TIMESTAMP="$CI_COMMIT_TIMESTAMP" .;
+          docker push gcr.io/$GCLOUD_PROJECT_ID/snapfile:$CI_COMMIT_SHORT_SHA;
+      fi
+
+    - docker tag gcr.io/$GCLOUD_PROJECT_ID/snapfile:$CI_COMMIT_SHORT_SHA gcr.io/$GCLOUD_PROJECT_ID/snapfile:latest
+    - docker push gcr.io/$GCLOUD_PROJECT_ID/snapfile:latest
+  only:
+    - main
+  tags:
+    - docker-shell
+
+deploy_prod:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  before_script:
+    - gcloud auth activate-service-account $GCLOUD_SERVICE_ACCOUNT_EMAIL --key-file $GCLOUD_KEY
+    - gcloud components install kubectl
+    - gcloud config set project $GCLOUD_PROJECT_ID
+    - gcloud container clusters get-credentials $GCLOUD_CLUSTER_NAME --zone $GCLOUD_CLUSTER_ZONE
+  script:
+    - kubectl rollout restart deployment snapfile-fe
+  environment:
+    name: prod
+    url: https://snapfile.tech
+  only:
+    - main
+  needs:
+    - build_prod
+  tags:
+    - docker-container

@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: snapfile-fe-staging
+spec:
+  selector:
+    app: snapfile-fe-staging
+  ports:
+  - port: 80
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snapfile-fe-staging
+spec:
+  selector:
+    matchLabels:
+      app: snapfile-fe-staging
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: snapfile-fe-staging
+    spec:
+      containers:
+      - name: snapfile-fe-staging
+        image: "gcr.io/com3014-a7833/snapfile:staging"
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80

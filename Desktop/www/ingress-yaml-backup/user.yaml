@@ -1,0 +1,41 @@
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: user
+spec:
+  selector:
+    app: user
+  ports:
+    - port: 80
+      targetPort: 4000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user
+spec:
+  selector:
+    matchLabels:
+      app: user
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: user
+    spec:
+      containers:
+      - name: user
+        image: "gcr.io/com3014-a7833/user"
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: user-env
+        env:
+        - name: "PORT"
+          value: "4000"
+        - name: "URL_DUD"
+          value: "http://dud.default.svc.cluster.local/"
+        - name: "URL_META"
+          value: "http://url.default.svc.cluster.local/"
+
